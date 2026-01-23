@@ -10,7 +10,7 @@ import {
   toggleRoomAvailability,
   getRoomAvailability,
   checkDateAvailability
-} from '../controllers/roomController';
+} from '../controllers/room';
 import { adminAuth } from '../middleware/adminAuth';
 
 const router = express.Router();
