@@ -7,7 +7,8 @@ interface CreateBookingData {
   checkIn: Date;
   checkOut: Date;
   guests: number;
-  numberOfRooms: number; // ✅ ADDED
+  children?: number; // ✅ ADDED - Optional field
+  numberOfRooms: number;
   guestName: string;
   guestEmail: string;
   guestPhone: string;
@@ -25,7 +26,8 @@ interface UpdateBookingData {
   checkIn?: string;
   checkOut?: string;
   guests?: number;
-  numberOfRooms?: number; // ✅ ADDED
+  children?: number; // ✅ ADDED - Optional field
+  numberOfRooms?: number;
   status?: string;
   paymentStatus?: string;
   specialRequests?: string;
@@ -98,7 +100,8 @@ export class BookingService {
       checkIn: data.checkIn,
       checkOut: data.checkOut,
       guests: Number(data.guests),
-      numberOfRooms: Number(data.numberOfRooms), // ✅ ADDED
+      children: data.children !== undefined ? Number(data.children) : 0, // ✅ ADDED with default 0
+      numberOfRooms: Number(data.numberOfRooms),
       guestName: data.guestName.trim(),
       guestEmail: data.guestEmail.trim().toLowerCase(),
       guestPhone: data.guestPhone.trim(),
@@ -172,6 +175,8 @@ export class BookingService {
 
   static async sendBookingNotification(booking: any, room: any) {
     try {
+      const adults = booking.guests - (booking.children || 0);
+      
       await sendBookingNotificationToAdmin({
         bookingReference: booking.bookingReference,
         guestName: booking.guestName,
@@ -181,6 +186,9 @@ export class BookingService {
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         guests: booking.guests,
+        children: booking.children || 0, // ✅ ADDED
+        adults: adults, // ✅ ADDED
+        numberOfRooms: booking.numberOfRooms, // ✅ ADDED
         nights: booking.nights,
         totalPrice: booking.totalPrice,
         specialRequests: booking.specialRequests

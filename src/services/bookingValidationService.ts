@@ -21,13 +21,32 @@ interface BookingConflictParams {
   excludeBookingId?: string;
 }
 
+// Room type capacity mapping - CORRECTED: All rooms = 3 guests per room
+const ROOM_CAPACITY: { [key: string]: number } = {
+  "Family Suite": 9,             // 3 guests/room × 3 rooms max
+  "Deluxe Mountain View": 6,     // 3 guests/room × 2 rooms max
+  "Cozy Mountain Cabin": 3,      // 3 guests/room × 1 room max
+};
+
+const MAX_ROOMS_PER_TYPE: { [key: string]: number } = {
+  "Family Suite": 3,
+  "Deluxe Mountain View": 2,
+  "Cozy Mountain Cabin": 1,
+};
+
+const CAPACITY_PER_ROOM: { [key: string]: number } = {
+  "Family Suite": 3,
+  "Deluxe Mountain View": 3,
+  "Cozy Mountain Cabin": 3,
+};
+
 export class BookingValidationService {
   /**
    * Validate required booking fields
    */
   static validateRequiredFields(data: any): ValidationResult {
     const requiredFields = [
-      'room', 'checkIn', 'checkOut', 'guests',
+      'room', 'checkIn', 'checkOut', 'guests', 'numberOfRooms',
       'guestName', 'guestEmail', 'guestPhone'
     ];
 
@@ -70,7 +89,221 @@ export class BookingValidationService {
   }
 
   /**
-   * Validate guest capacity
+   * Validate guest name (no numbers allowed)
+   */
+  static validateGuestName(name: string): ValidationResult {
+    const nameRegex = /^[a-zA-Z\s'-]+$/;
+    
+    if (!nameRegex.test(name)) {
+      return {
+        isValid: false,
+        error: 'Guest name can only contain letters, spaces, hyphens and apostrophes',
+        statusCode: 400
+      };
+    }
+
+    if (name.length < 2) {
+      return {
+        isValid: false,
+        error: 'Guest name must be at least 2 characters',
+        statusCode: 400
+      };
+    }
+
+    if (name.length > 100) {
+      return {
+        isValid: false,
+        error: 'Guest name cannot exceed 100 characters',
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate phone number (exactly 10 digits)
+   */
+  static validatePhoneNumber(phone: string): ValidationResult {
+    const digitsOnly = phone.replace(/\D/g, '');
+    
+    if (digitsOnly.length !== 10) {
+      return {
+        isValid: false,
+        error: 'Phone number must be exactly 10 digits',
+        statusCode: 400
+      };
+    }
+
+    // Indian mobile number format (starts with 6-9)
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(digitsOnly)) {
+      return {
+        isValid: false,
+        error: 'Please enter a valid 10-digit phone number starting with 6-9',
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate children count
+   */
+  static validateChildren(children: number, totalGuests: number): ValidationResult {
+    if (children < 0) {
+      return {
+        isValid: false,
+        error: 'Number of children cannot be negative',
+        statusCode: 400
+      };
+    }
+
+    if (children > totalGuests) {
+      return {
+        isValid: false,
+        error: 'Number of children cannot exceed total guests',
+        statusCode: 400
+      };
+    }
+
+    if (children === totalGuests && totalGuests > 0) {
+      return {
+        isValid: false,
+        error: 'At least 1 adult is required (children cannot book alone)',
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate special requests word count
+   */
+  static validateSpecialRequests(specialRequests?: string): ValidationResult {
+    if (!specialRequests || specialRequests.trim() === '') {
+      return { isValid: true };
+    }
+
+    const wordCount = specialRequests.trim().split(/\s+/).filter(Boolean).length;
+    
+    if (wordCount > 30) {
+      return {
+        isValid: false,
+        error: `Special requests must be 30 words or less (currently ${wordCount} words)`,
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate guest capacity based on room type
+   */
+  static validateGuestCapacityByRoomType(
+    guests: number, 
+    roomType: string
+  ): ValidationResult {
+    const maxCapacity = ROOM_CAPACITY[roomType];
+    
+    if (!maxCapacity) {
+      // Fallback to generic validation
+      if (guests > 20) {
+        return {
+          isValid: false,
+          error: 'Maximum 20 guests allowed',
+          statusCode: 400
+        };
+      }
+      return { isValid: true };
+    }
+
+    if (guests > maxCapacity) {
+      return {
+        isValid: false,
+        error: `${roomType} can accommodate maximum ${maxCapacity} guests`,
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate number of rooms by room type
+   */
+  static validateNumberOfRoomsByType(
+    numberOfRooms: number,
+    roomType: string
+  ): ValidationResult {
+    const maxRooms = MAX_ROOMS_PER_TYPE[roomType];
+    
+    if (!maxRooms) {
+      // Fallback to generic validation
+      if (numberOfRooms > 6) {
+        return {
+          isValid: false,
+          error: 'Maximum 6 rooms allowed',
+          statusCode: 400
+        };
+      }
+      return { isValid: true };
+    }
+
+    if (numberOfRooms > maxRooms) {
+      return {
+        isValid: false,
+        error: `Maximum ${maxRooms} ${roomType} room${maxRooms > 1 ? 's' : ''} available`,
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate guest capacity matches room selection
+   */
+  static validateGuestsMatchRooms(
+    guests: number,
+    numberOfRooms: number,
+    roomType: string
+  ): ValidationResult {
+    const capacityPerRoom = CAPACITY_PER_ROOM[roomType];
+    
+    if (!capacityPerRoom) {
+      return { isValid: true }; // Skip validation if room type not found
+    }
+
+    const totalCapacity = capacityPerRoom * numberOfRooms;
+
+    if (guests > totalCapacity) {
+      const recommendedRooms = Math.ceil(guests / capacityPerRoom);
+      const maxRooms = MAX_ROOMS_PER_TYPE[roomType] || 6;
+      
+      if (recommendedRooms > maxRooms) {
+        return {
+          isValid: false,
+          error: `${guests} guests exceed capacity. ${roomType} can accommodate maximum ${totalCapacity} guests with ${maxRooms} rooms (3 guests per room)`,
+          statusCode: 400
+        };
+      }
+
+      return {
+        isValid: false,
+        error: `${guests} guests require at least ${recommendedRooms} rooms (3 guests per room)`,
+        statusCode: 400
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Validate guest capacity (legacy method for backward compatibility)
    */
   static validateGuestCapacity(guests: number, roomCapacity: number): ValidationResult {
     if (guests > roomCapacity) {

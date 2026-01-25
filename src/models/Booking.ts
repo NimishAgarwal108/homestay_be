@@ -7,7 +7,8 @@ export interface IBooking extends Document {
   checkIn: Date;
   checkOut: Date;
   guests: number;
-  numberOfRooms: number; // ✅ ADDED
+  children: number; // ✅ ADDED - Optional field
+  numberOfRooms: number;
   totalPrice: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   specialRequests?: string;
@@ -70,7 +71,18 @@ const bookingSchema = new Schema<IBooking, IBookingModel>({
     min: [1, 'At least 1 guest is required'],
     max: [20, 'Maximum 20 guests allowed']
   },
-  numberOfRooms: { // ✅ ADDED
+  children: { // ✅ ADDED - Optional field
+    type: Number,
+    default: 0,
+    min: [0, 'Children cannot be negative'],
+    validate: {
+      validator: function(this: IBooking, value: number) {
+        return value <= this.guests;
+      },
+      message: 'Children cannot exceed total guests'
+    }
+  },
+  numberOfRooms: {
     type: Number,
     required: [true, 'Number of rooms is required'],
     min: [1, 'At least 1 room is required'],
@@ -107,14 +119,28 @@ const bookingSchema = new Schema<IBooking, IBookingModel>({
   specialRequests: {
     type: String,
     maxlength: [1000, 'Special requests cannot exceed 1000 characters'],
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(value: string) {
+        if (!value || value.trim() === '') return true;
+        const wordCount = value.trim().split(/\s+/).filter(Boolean).length;
+        return wordCount <= 30;
+      },
+      message: 'Special requests must be 30 words or less'
+    }
   },
   guestName: {
     type: String,
     required: [true, 'Guest name is required'],
     trim: true,
     minlength: [2, 'Guest name must be at least 2 characters'],
-    maxlength: [100, 'Guest name cannot exceed 100 characters']
+    maxlength: [100, 'Guest name cannot exceed 100 characters'],
+    validate: {
+      validator: function(value: string) {
+        return /^[a-zA-Z\s'-]+$/.test(value);
+      },
+      message: 'Guest name can only contain letters, spaces, hyphens and apostrophes'
+    }
   },
   guestEmail: {
     type: String,
@@ -126,7 +152,14 @@ const bookingSchema = new Schema<IBooking, IBookingModel>({
   guestPhone: {
     type: String,
     required: [true, 'Guest phone is required'],
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(value: string) {
+        const digitsOnly = value.replace(/\D/g, '');
+        return /^[6-9]\d{9}$/.test(digitsOnly);
+      },
+      message: 'Phone number must be exactly 10 digits starting with 6-9'
+    }
   },
   paymentStatus: {
     type: String,
@@ -191,6 +224,11 @@ bookingSchema.index({ createdAt: -1 });
 // ============================================
 // VIRTUALS
 // ============================================
+
+// Virtual for adults count
+bookingSchema.virtual('adults').get(function(this: HydratedDocument<IBooking>) {
+  return this.guests - (this.children || 0);
+});
 
 // Virtual for booking duration
 bookingSchema.virtual('duration').get(function(this: HydratedDocument<IBooking>) {

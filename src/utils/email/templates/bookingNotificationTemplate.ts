@@ -7,6 +7,9 @@ export interface BookingEmailData {
   checkIn: Date;
   checkOut: Date;
   guests: number;
+  children?: number; // ✅ ADDED - Optional field
+  adults?: number; // ✅ ADDED - Optional field
+  numberOfRooms?: number; // ✅ ADDED - Optional field
   nights: number;
   totalPrice: number;
   specialRequests?: string;
@@ -21,7 +24,10 @@ export const bookingNotificationTemplate = (data: BookingEmailData): string => {
     roomName, 
     checkIn, 
     checkOut, 
-    guests, 
+    guests,
+    children = 0, // ✅ ADDED with default
+    adults = guests, // ✅ ADDED with default
+    numberOfRooms = 1, // ✅ ADDED with default
     nights, 
     totalPrice,
     specialRequests 
@@ -90,6 +96,12 @@ export const bookingNotificationTemplate = (data: BookingEmailData): string => {
           margin: 10px 0;
           font-size: 14px;
         }
+        .guest-breakdown {
+          background: #f8f9fa;
+          padding: 15px;
+          border-radius: 8px;
+          margin: 10px 0;
+        }
       </style>
     </head>
     <body>
@@ -120,8 +132,13 @@ export const bookingNotificationTemplate = (data: BookingEmailData): string => {
         </div>
 
         <div class="detail-row">
-          <span class="detail-label">🏠 Room:</span>
+          <span class="detail-label">🏠 Room Type:</span>
           <span class="detail-value">${roomName}</span>
+        </div>
+
+        <div class="detail-row">
+          <span class="detail-label">🔢 Number of Rooms:</span>
+          <span class="detail-value">${numberOfRooms} room${numberOfRooms > 1 ? 's' : ''}</span>
         </div>
 
         <div class="detail-row">
@@ -150,9 +167,19 @@ export const bookingNotificationTemplate = (data: BookingEmailData): string => {
         </div>
 
         <div class="detail-row">
-          <span class="detail-label">👥 Guests:</span>
+          <span class="detail-label">👥 Total Guests:</span>
           <span class="detail-value">${guests} guest${guests > 1 ? 's' : ''}</span>
         </div>
+
+        ${children > 0 || adults !== guests ? `
+          <div class="guest-breakdown">
+            <strong style="color: #555;">Guest Breakdown:</strong><br>
+            <div style="margin-top: 8px;">
+              👨 Adults: <strong>${adults}</strong><br>
+              👶 Children: <strong>${children}</strong>
+            </div>
+          </div>
+        ` : ''}
 
         <div class="detail-row">
           <span class="detail-label">💰 Total Amount:</span>
